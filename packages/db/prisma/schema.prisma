@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  suspended
+
+  @@map("user_status")
+}
+
+enum WalletTransactionType {
+  hold
+  settle
+  release
+  topup
+  refund
+  admin_adjustment
+
+  @@map("wallet_transaction_type")
+}
+
+enum WalletReferenceType {
+  payment
+  generation
+  admin_adjustment
+
+  @@map("wallet_reference_type")
+}
+
+enum WalletActorType {
+  user
+  system
+  admin
+
+  @@map("wallet_actor_type")
+}
+
+enum PaymentStatus {
+  pending
+  confirmed
+  failed
+
+  @@map("payment_status")
+}
+
+enum GenerationToolType {
+  ai_image
+  text_to_video
+  image_to_video
+
+  @@map("generation_tool_type")
+}
+
+enum GenerationStatus {
+  pending
+  submitted
+  processing
+  completed
+  failed
+  needs_reconciliation
+
+  @@map("generation_status")
+}
+
+enum ModerationStatus {
+  private
+  pending_review
+  published
+  rejected
+
+  @@map("moderation_status")
+}
+
+enum AdminActionType {
+  credit_adjustment
+  content_hide
+  content_remove
+  user_suspend
+  user_reactivate
+
+  @@map("admin_action_type")
+}
+
+model User {
+  id                     String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName               String     @map("full_name")
+  email                  String     @unique @db.Citext
+  passwordHash           String     @map("password_hash")
+  role                   UserRole   @default(user)
+  status                 UserStatus @default(active)
+  sessionVersion         Int        @default(0) @map("session_version")
+  passwordResetTokenHash String?    @map("password_reset_token_hash")
+  passwordResetExpiresAt DateTime?  @map("password_reset_expires_at") @db.Timestamptz(6)
+  createdAt              DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  wallet              Wallet?
+  walletTransactions  WalletTransaction[]
+  payments            Payment[]
+  generations         Generation[]
+  uploads             Upload[]
+  assets              Asset[]
+  adminAuditLogs      AdminAuditLog[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  balanceCredits Int      @default(0) @map("balance_credits")
+  heldCredits    Int      @default(0) @map("held_credits")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id            String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId      String                @map("wallet_id") @db.Uuid
+  userId        String                @map("user_id") @db.Uuid
+  type          WalletTransactionType
+  amountCredits Int                   @map("amount_credits")
+  balanceAfter  Int                   @map("balance_after")
+  referenceType WalletReferenceType   @map("reference_type")
+  referenceId   String                @map("reference_id") @db.Uuid
+  description   String
+  actorType     WalletActorType       @map("actor_type")
+  actorId       String?               @map("actor_id") @db.Uuid
+  createdAt     DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([walletId, createdAt])
+  @@index([userId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+model CreditPackage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amountTzs      Int      @map("amount_tzs")
+  creditsGranted Int      @map("credits_granted")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payments Payment[]
+
+  @@map("credit_packages")
+}
+
+model Payment {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  creditPackageId      String?       @map("credit_package_id") @db.Uuid
+  amountTzs            Int           @map("amount_tzs")
+  creditsGranted       Int           @map("credits_granted")
+  status               PaymentStatus @default(pending)
+  snippeTransactionId  String?       @unique @map("snippe_transaction_id")
+  clientIdempotencyKey String?       @map("client_idempotency_key")
+  snippeReference      Json?         @map("snippe_reference")
+  confirmedAt          DateTime?     @map("confirmed_at") @db.Timestamptz(6)
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  creditPackage CreditPackage? @relation(fields: [creditPackageId], references: [id], onDelete: SetNull)
+  events        PaymentEvent[]
+
+  @@unique([userId, clientIdempotencyKey])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId         String   @map("payment_id") @db.Uuid
+  eventType         String   @map("event_type")
+  rawPayload        Json     @map("raw_payload")
+  signatureVerified Boolean  @map("signature_verified")
+  processed         Boolean  @default(false)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_events")
+}
+
+model GenerationConfiguration {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  toolType        GenerationToolType @map("tool_type")
+  modelUsed       String             @map("model_used")
+  durationSeconds Int?               @map("duration_seconds")
+  costCredits     Int                @map("cost_credits")
+  isActive        Boolean            @default(true) @map("is_active")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  generations Generation[]
+
+  @@index([toolType, isActive])
+  @@map("generation_configurations")
+}
+
+model Upload {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  storageKey    String   @map("storage_key")
+  mimeType      String   @map("mime_type")
+  fileSizeBytes BigInt?  @map("file_size_bytes")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  generations Generation[]
+
+  @@index([userId, createdAt])
+  @@map("uploads")
+}
+
+model Generation {
+  id                        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                    String             @map("user_id") @db.Uuid
+  generationConfigurationId String             @map("generation_configuration_id") @db.Uuid
+  toolType                  GenerationToolType @map("tool_type")
+  modelUsed                 String             @map("model_used")
+  status                    GenerationStatus   @default(pending)
+  input                     Json
+  sourceUploadId            String?            @map("source_upload_id") @db.Uuid
+  costCredits               Int                @map("cost_credits")
+  providerCostAmount        Decimal?           @map("provider_cost_amount") @db.Decimal(14, 6)
+  providerCostCurrency      String?            @map("provider_cost_currency")
+  outputAssetId             String?            @unique @map("output_asset_id") @db.Uuid
+  providerRequestId         String?            @map("provider_request_id")
+  providerStatusUrl         String?            @map("provider_status_url")
+  failureReason             String?            @map("failure_reason")
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  completedAt               DateTime?          @map("completed_at") @db.Timestamptz(6)
+
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  configuration GenerationConfiguration @relation(fields: [generationConfigurationId], references: [id], onDelete: Restrict)
+  sourceUpload  Upload?                 @relation(fields: [sourceUploadId], references: [id], onDelete: Restrict)
+  outputAsset   Asset?                  @relation("GenerationOutput", fields: [outputAssetId], references: [id], onDelete: SetNull)
+  producedAsset Asset?                  @relation("AssetGeneration")
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([providerRequestId])
+  @@index([generationConfigurationId])
+  @@map("generations")
+}
+
+model Asset {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  generationId     String           @unique @map("generation_id") @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  storageKey       String           @map("storage_key")
+  mimeType         String           @map("mime_type")
+  fileSizeBytes    BigInt?          @map("file_size_bytes")
+  moderationStatus ModerationStatus @default(private) @map("moderation_status")
+  publishedAt      DateTime?        @map("published_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  generation Generation  @relation("AssetGeneration", fields: [generationId], references: [id], onDelete: Restrict)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  outputFor  Generation? @relation("GenerationOutput")
+
+  @@index([userId])
+  @@index([moderationStatus, publishedAt])
+  @@map("assets")
+}
+
+model AdminAuditLog {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminUserId String          @map("admin_user_id") @db.Uuid
+  actionType  AdminActionType @map("action_type")
+  targetType  String          @map("target_type")
+  targetId    String          @map("target_id") @db.Uuid
+  reason      String
+  metadata    Json?
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin User @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
+}

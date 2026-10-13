@@ -1,0 +1,22 @@
+{
+  "name": "@sanaaai/providers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.test.json && node --test dist/security.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.901.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "sanaaai",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:packages": "npm run build --workspace=@sanaaai/types && npm run build --workspace=@sanaaai/config && npm run build --workspace=@sanaaai/db && npm run build --workspace=@sanaaai/providers && npm run build --workspace=@sanaaai/generation",
+    "postinstall": "npm run build:packages",
+    "dev": "npm run build:packages && concurrently -n api,worker,web -c cyan,magenta,green \"npm run start:dev --workspace=@sanaaai/api\" \"npm run start:dev --workspace=@sanaaai/worker\" \"npm run dev --workspace=@sanaaai/web\"",
+    "dev:api": "npm run build:packages && npm run start:dev --workspace=@sanaaai/api",
+    "dev:worker": "npm run build:packages && npm run start:dev --workspace=@sanaaai/worker",
+    "dev:web": "npm run build:packages && npm run dev --workspace=@sanaaai/web",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "db:migrate": "npm run migrate --workspace=@sanaaai/db",
+    "db:role": "npm run role --workspace=@sanaaai/db",
+    "db:seed": "npm run seed --workspace=@sanaaai/db",
+    "db:init": "npm run db:migrate && npm run db:role && npm run db:seed",
+    "admin:create": "npm run admin:create --workspace=@sanaaai/db",
+    "audit": "npm audit --audit-level=high",
+    "test": "npm run build:packages && npm run test --workspace=@sanaaai/types && npm run test --workspace=@sanaaai/providers && npm run test --workspace=@sanaaai/api && npm run test --workspace=@sanaaai/worker && npm run test:e2e --workspace=@sanaaai/api && npm run test:e2e --workspace=@sanaaai/worker",
+    "lint": "npm run lint --workspace=@sanaaai/api && npm run lint --workspace=@sanaaai/worker && npm run lint --workspace=@sanaaai/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

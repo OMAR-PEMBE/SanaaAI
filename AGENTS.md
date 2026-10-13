@@ -6,23 +6,23 @@ This file is read automatically by AI coding agents (Codex, Claude Code, and sim
 
 ## What SanaaAI is
 
-A Tanzania-first web platform where users generate AI images and short videos through simple, outcome-focused tools, paying via mobile money in a visible credit wallet. Full product detail: `docs/PRD.md`.
+A Tanzania-first web platform where users generate AI images and short videos through simple, outcome-focused tools, paying via mobile money in a visible credit wallet. Full product detail: `DOCS/PRD.md`.
 
 ## Where to look before you write code
 
 | Question | Document |
 |---|---|
-| What is this feature supposed to do? | `docs/PRD.md` |
-| What's the system/tech stack and why? | `docs/ARCHITECTURE.md` |
-| What TypeScript types, folder structure, and hard coding rules must I follow? | `docs/CONVENTIONS.md` — **read this before writing any code**, not just this file |
-| What does the database schema actually look like? | `docs/DATABASE.md` |
-| What's the exact API contract (endpoints, request/response shapes, error codes)? | `docs/API_SPEC.md` |
-| What are the security rules? | `docs/SECURITY.md` |
-| What should this screen/component do and show? | `docs/UI_SPEC.md` |
-| What env vars exist and what do they mean? | `.env.example` |
-| What order should I build things in, and how should I work in sessions? | `docs/MILESTONES.md` |
+| What is this feature supposed to do? | `DOCS/PRD.md` |
+| What's the system/tech stack and why? | `DOCS/ARCHITECTURE.md` |
+| What TypeScript types, folder structure, and hard coding rules must I follow? | `DOCS/CONVENTIONS.md` — **read this before writing any code**, not just this file |
+| What does the database schema actually look like? | `DOCS/DATABASE.md` |
+| What's the exact API contract (endpoints, request/response shapes, error codes)? | `DOCS/API_SPEC.md` |
+| What are the security rules? | `DOCS/SECURITY.md` |
+| What should this screen/component do and show? | `DOCS/UI_SPEC.md` |
+| What env vars exist and what do they mean? | `env.example` |
+| What order should I build things in, and how should I work in sessions? | `DOCS/IMPLEMENTATION_PLAN.md` (titled MILESTONES.md) |
 
-(Adjust the `docs/` prefix above to match wherever these files actually live once the repo is scaffolded — they were originally delivered flat and should be organized into a `docs/` folder at `M0`, per `MILESTONES.md`.)
+Specs live in `DOCS/`. Paths in the table above use that folder.
 
 If two of these documents genuinely disagree, **stop and flag it — do not silently pick one.** The precedence order, when a genuine conflict needs a tiebreaker while a human resolves it, is: `PRD.md` → `ARCHITECTURE.md` → `DATABASE.md` → `API_SPEC.md` → `SECURITY.md` → `UI_SPEC.md` → `MILESTONES.md` (execution order only, never overrides the others).
 
@@ -87,7 +87,24 @@ Secure, transactionally safe, idempotent where required, responsive on mobile, s
 
 ## Commands
 
-**TBD** — populate once the repo is scaffolded at `M0`: package manager, install command, dev server command(s) for each app, migration command, test command, lint/format command. An agent should not guess these; if this section is still empty, ask or inspect `package.json`/equivalent directly.
+Package manager: npm workspaces. Node 24.
+
+- Install: `npm install` from the repo root. The postinstall script builds the shared packages.
+- Local Postgres and Redis: `npm run docker:up` (Docker Desktop must be running). Stop them with `npm run docker:down`.
+- Database: `npm run db:init` applies Prisma migrations, the `sanaaai_app` role, and the seed. `packages/db/.env` uses the owner URL. The API and worker use the `sanaaai_app` URL.
+- One-time admin: `npm run admin:create` with `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD` set in `packages/db/.env`.
+- All three apps: `npm run dev`. API on port 4000, worker on port 4001, web on port 3000.
+- One app: `npm run dev:api`, `npm run dev:worker`, or `npm run dev:web`.
+- Test: `npm test`.
+- Lint: `npm run lint`.
+- Dependency audit: `npm run audit`.
+- Build shared packages only: `npm run build:packages`.
+
+Local env files are gitignored: `apps/api/.env`, `apps/worker/.env`, `apps/web/.env`, `packages/db/.env`. They follow `env.example`. The worker's own `PORT` is `4001`.
+
+Prisma lives in `packages/db`. Product routes are under `/v1`. `GET /health` stays unversioned.
+
+On this machine, call `npm.cmd` from PowerShell. The `npm` script is blocked by the execution policy.
 
 ## When you find a real gap
 
@@ -98,3 +115,4 @@ Writing code sometimes surfaces a real gap in the docs (this happened once alrea
 ## Change Log
 
 - **Merged from a separately drafted ChatGPT `AGENTS.md`:** the named provider-isolation interface pattern (`PaymentGateway`/`AiGenerationProvider`), a structured completion-report template, the "never delete/weaken a test or constraint to pass" rule, the external-documentation verification rule, and the "what a good implementation looks like" checklist. That draft's Laravel/PHP stack, four-tool scope, and explicit prohibition on JWT/React/Next.js were **not** adopted — all three directly contradict decisions already locked in `ARCHITECTURE.md`, `PRD.md`, and `SECURITY.md`.
+- **M0 scaffold:** recorded the real commands, pointed the spec table at `DOCS/`, and noted that the milestones file is `DOCS/IMPLEMENTATION_PLAN.md`.
